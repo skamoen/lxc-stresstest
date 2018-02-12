@@ -19,7 +19,7 @@ var (
 
 func main() {
 	d := &trackDirector{
-		Template: "honeytrap",
+		Template: "stresstest",
 	}
 
 	d.activeContainers = &syncmap.Map{}
@@ -42,8 +42,6 @@ func (d *trackDirector) Create(id int) error {
 		return err
 	}
 
-	meta.m.Lock()
-	defer meta.m.Unlock()
 	if !meta.c.Running() {
 		err := meta.start()
 		if err != nil {
@@ -81,9 +79,6 @@ func (d *trackDirector) getContainerMeta(id int) (*containerMeta, error) {
 
 	if !found {
 		// Container not in cache, check state
-		meta.m.Lock()
-		defer meta.m.Unlock()
-
 		handle, exists := d.checkExists(name)
 		if !exists {
 			// Container doesn't exist yet, create a new one from template
@@ -103,6 +98,7 @@ func (d *trackDirector) cloneWithName(name string) (*lxc.Container, error) {
 	log.Debugf("Cloning new container %s from template %s", name, d.Template)
 	templateHandle, err := lxc.NewContainer(d.Template)
 	if err != nil {
+		log.Errorf("Error getting handle on template for %s: %s", name, err.Error())
 		return nil, err
 	}
 
@@ -114,11 +110,13 @@ func (d *trackDirector) cloneWithName(name string) (*lxc.Container, error) {
 		Snapshot: true,
 		KeepName: true,
 	}); err != nil {
+		log.Errorf("Error cloning %s: %s", name, err.Error())
 		return nil, err
 	}
 
 	newContainerHandle, err := lxc.NewContainer(name)
 	if err != nil {
+		log.Errorf("Error getting handle on cloned container %s: %s", name, err.Error())
 		return nil, err
 	}
 
