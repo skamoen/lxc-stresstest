@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net"
 	"sync"
 	"time"
@@ -25,16 +26,32 @@ func main() {
 	d.activeContainers = &syncmap.Map{}
 
 	id := 1
+	r := rand.New(rand.NewSource(99))
+
 	for {
-		log.Info("Creating container %d", id)
+		log.Info("Creating container %s", id)
 		go d.Create(id)
-		time.Sleep(time.Second)
+		// Second connection wanting the same container
+		if r.Int() > 40 {
+			time.Sleep(50 * time.Millisecond)
+			go d.Create(id)
+		}
+		// Third connection wanting the same container
+		if r.Int() > 60 {
+			time.Sleep(50 * time.Millisecond)
+			go d.Create(id)
+		}
+		// Fourth connection wanting the same container
+		if r.Int() > 80 {
+			time.Sleep(50 * time.Millisecond)
+			go d.Create(id)
+		}
+		time.Sleep(600 * time.Millisecond)
 		id++
 	}
 }
 
 func (d *trackDirector) Create(id int) error {
-
 	meta, err := d.getContainerMeta(id)
 	if err != nil {
 		log.Errorf("Error getting container meta %s: %s", meta.name, err.Error())
@@ -42,6 +59,8 @@ func (d *trackDirector) Create(id int) error {
 		return err
 	}
 
+	meta.m.Lock()
+	defer meta.m.Unlock()
 	if !meta.c.Running() {
 		err := meta.start()
 		if err != nil {
@@ -79,6 +98,8 @@ func (d *trackDirector) getContainerMeta(id int) (*containerMeta, error) {
 
 	if !found {
 		// Container not in cache, check state
+		meta.m.Lock()
+		defer meta.m.Unlock()
 		handle, exists := d.checkExists(name)
 		if !exists {
 			// Container doesn't exist yet, create a new one from template
