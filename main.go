@@ -13,7 +13,8 @@ import (
 )
 
 var (
-	log = logging.MustGetLogger("director/track")
+	log        = logging.MustGetLogger("director/track")
+	errorcount = 0
 )
 
 func main() {
@@ -36,6 +37,8 @@ func (d *trackDirector) Create(id int) error {
 
 	meta, err := d.getContainerMeta(id)
 	if err != nil {
+		log.Errorf("Error getting container meta %s: %s", meta.name, err.Error())
+		errorcount++
 		return err
 	}
 
@@ -45,6 +48,7 @@ func (d *trackDirector) Create(id int) error {
 		err := meta.start()
 		if err != nil {
 			log.Errorf("Error starting container %s: %s", meta.name, err.Error())
+			errorcount++
 			return err
 		}
 	}
@@ -53,10 +57,12 @@ func (d *trackDirector) Create(id int) error {
 		err = meta.getNetwork()
 		if err != nil {
 			log.Errorf("Error getting network for container %s: %s", meta.name, err.Error())
+			errorcount++
 			return err
 		}
 	}
 
+	log.Infof("Started container %s", id)
 	return nil
 }
 
@@ -192,7 +198,7 @@ func (c *containerMeta) getNetwork() error {
 			continue
 		}
 
-		return fmt.Errorf("Could not get an IP address")
+		return fmt.Errorf("Could not get an IP address for %s: %s", c.name, err.Error())
 	}
 
 	var isets []string
